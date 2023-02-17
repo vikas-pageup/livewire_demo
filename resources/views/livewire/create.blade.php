@@ -34,7 +34,7 @@
             @enderror
         </div>
         <div class="d-inline-block float-end">
-            <button type="submit" class="btn btn-success rounded-pill btn-block">Save</button>
+            <button type="submit" class="btn btn-success rounded-pill ">Save</button>
             <button type="button" wire:click="closeModal" class="btn btn-secondary rounded-pill"
                 data-bs-dismiss="modal">Cancel</button>
         </div>

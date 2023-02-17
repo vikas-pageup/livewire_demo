@@ -14,9 +14,8 @@ use function PHPUnit\Framework\isEmpty;
 class Product extends Component
 {
     use WithFileUploads;
-   
+
     public $title, $description, $productId, $image, $path;
-    public $updateProduct = false, $addProduct = false, $productList = 10;
     public $search = '';
     public $products, $nextCursor, $hasMorePages;
 
@@ -26,6 +25,11 @@ class Product extends Component
     protected $queryString = [
         'search' => ['except' => '']
     ];
+
+    /**
+     * Listeners
+     */
+    protected $listeners = ['deleteProduct'];
 
     /**
      * List of add/edit form rules
@@ -53,13 +57,6 @@ class Product extends Component
      */
     public function render()
     {
-
-        // $products = Products::select('id', 'title', 'description','image')
-        //                         ->take($this->productList)
-        //                         ->where('title','like','%'.$this->search.'%')
-        //                         ->orWhere('description','like','%'.$this->search.'%')
-        //                         ->get();
-
         return view('livewire.product');
     }
 
@@ -79,14 +76,18 @@ class Product extends Component
      */
     public function loadProducts()
     {
-        if ($this->hasMorePages !== null  && !$this->hasMorePages) {
-            return;
-        }
+        if ($this->hasMorePages !== null  && !$this->hasMorePages) return;
 
-        $products = Products::where('title', 'like', "%{$this->search}%")
-            ->cursorPaginate(8, ['*'], 'cursor', Cursor::fromEncoded($this->nextCursor));
-
+        $products = Products::orderBy('id')->cursorPaginate(8, ['*'], 'cursor', Cursor::fromEncoded($this->nextCursor));
         $this->products->push(...$products->items());
+
+        // dd((Products::cursorPaginate(15)));
+        // dd((Products::orderBy('title')->cursorPaginate(15)));
+        // dd((Products::orderBy('id')->cursorPaginate(15,['title','description','id'])));
+        // dd((Products::orderBy('id')->cursorPaginate(15,['title','description','id'],'cursor')));
+        // dd((Products::orderBy('id')->cursorPaginate(15,['title','description','id'],'cursor',Cursor::fromEncoded($this->nextCursor))));
+        // dd((Products::orderBy('id')->cursorPaginate(15,['title','description','id'],'cursor',Cursor::fromEncoded($this->nextCursor)))->nextCursor());
+        // dd((Products::orderBy('id')->cursorPaginate(15,['title','description','id'],'cursor',Cursor::fromEncoded($this->nextCursor)))->nextCursor()->encode());
 
         if ($this->hasMorePages = $products->hasMorePages()) {
             $this->nextCursor = $products->nextCursor()->encode();
@@ -99,13 +100,14 @@ class Product extends Component
      */
     public function Search()
     {
+        // If search is not empty
         if ($this->search != '') {
-            
+
             $this->products = Products::where('title', 'like', '%' . $this->search . '%')
                 ->orWhere('description', 'like', '%' . $this->search . '%')
                 ->take(30)->get();
 
-
+            //if there is no result then loadProduct  shouldn't be called
             if (isEmpty($this->products)) {
                 $this->hasMorePages = null;
             }
@@ -114,16 +116,7 @@ class Product extends Component
             return redirect('/');
         }
     }
-    /**
-     * Open Add Product form
-     * @return void
-     */
-    public function addProduct()
-    {
-        $this->resetFields();
-        $this->addProduct = true;
-        $this->updateProduct = false;
-    }
+
     /**
      * store the user inputted product data in the products table
      * @return void
@@ -140,7 +133,6 @@ class Product extends Component
             ]);
             session()->flash('success', 'Product Created Successfully!!');
             $this->resetFields();
-            $this->addProduct = false;
             $this->dispatchBrowserEvent('close-modal');
             $this->dispatchBrowserEvent('alert-close');
         } catch (\Exception $ex) {
@@ -165,8 +157,6 @@ class Product extends Component
                 $this->description = $product->description;
                 $this->path = $product->image;
                 $this->productId = $product->id;
-                $this->updateProduct = true;
-                $this->addProduct = false;
             }
         } catch (\Exception $ex) {
             session()->flash('error', 'Something went wrong!!');
@@ -181,6 +171,8 @@ class Product extends Component
     {
 
         $this->validate([
+            'title' => 'required',
+            'description' => 'required',
             'image' => 'nullable|mimes:jpeg,png,jpg,gif,svg,avif'
         ]);
 
@@ -197,23 +189,11 @@ class Product extends Component
             ]);
             session()->flash('success', 'Product Updated Successfully!!');
             $this->resetFields();
-            $this->updateProduct = false;
             $this->dispatchBrowserEvent('close-modal');
             $this->dispatchBrowserEvent('alert-close');
         } catch (\Exception $ex) {
             session()->flash('success', 'Something goes wrong!!');
         }
-    }
-
-    /**
-     * Cancel Add/Edit form and redirect to product listing page
-     * @return void
-     */
-    public function cancelProduct()
-    {
-        $this->addProduct = false;
-        $this->updateProduct = false;
-        $this->resetFields();
     }
 
     /**
@@ -226,7 +206,6 @@ class Product extends Component
         try {
             File::delete(public_path('storage/' . (Products::find($id)->value('image'))));
             Products::find($id)->delete();
-
             session()->flash('success', "Product Deleted Successfully!!");
             $this->dispatchBrowserEvent('alert-close');
         } catch (\Exception $e) {
@@ -234,13 +213,12 @@ class Product extends Component
         }
     }
 
+    /**
+     * reset input fields on modal close
+     * @return void
+     */
     public function closeModal()
     {
         $this->resetFields();
-    }
-
-    public function loadMore()
-    {
-        $this->productList += 10;
     }
 }
